@@ -1,0 +1,388 @@
+# 03 — Respuestas a dudas concretas
+
+> Resuelve siete preguntas puntuales surgidas al leer el
+> [documento 01](01_Sistema_y_Elasticidad.md). Mismo estilo didáctico y profundo.
+
+---
+
+## 1. ¿Qué es un campo de desplazamientos?
+
+Un **campo** (en física/matemáticas) es una **función que asigna un valor a cada
+punto del espacio** (y aquí, también del tiempo). Un campo de desplazamientos
+asigna a cada punto material de la viga **el vector que indica cuánto se ha
+movido** desde su posición de reposo.
+
+Aclaremos tu intuición, porque mezclas dos ideas:
+
+- **No** es "el desplazamiento de un punto a lo largo del tiempo" (eso sería una
+  *trayectoria*, función solo de $t$).
+- **Sí** es: para **cada** punto $(x,y)$ y **cada** instante $t$, un vector de
+  desplazamiento. Es una función de las tres variables a la vez:
+
+$$\vec{d}(x,y,t) = \big(u(x,y,t),\; v(x,y,t)\big)$$
+
+Sobre tu pregunta "¿campo horizontal en un punto o campo general de la viga?":
+son **niveles distintos del mismo objeto**, y conviene tener el vocabulario claro:
+
+| Término | Qué es | Ejemplo |
+|---|---|---|
+| **Componente** del campo | una de las dos funciones, $u$ (horizontal) o $v$ (vertical) | $u(x,y,t)$ |
+| **Valor** del campo en un punto-instante | el vector concreto ahí | $\vec d(0.5,\,0,\,2) = (3\,\mu m,\,-50\,\mu m)$ |
+| **Campo** (sin más) | **toda** la función, los desplazamientos de **todos** los puntos en **todos** los instantes | $\vec d(x,y,t)$ |
+
+Así que "el campo de desplazamientos de la viga" se refiere al **objeto completo**
+(todos los puntos, todos los instantes), mientras que "el campo de
+desplazamientos horizontal" se refiere a **una componente** ($u$) de ese objeto.
+La red neuronal del proyecto aprende precisamente este campo completo: le das
+$(x,y,t)$ y te devuelve $(u,v)$ ahí.
+
+---
+
+## 2. El efecto Poisson
+
+El **efecto Poisson** es un hecho experimental: cuando estiras un material en una
+dirección, **se contrae en las direcciones perpendiculares** (y al revés: si lo
+comprimes, se ensancha).
+
+> Imagen mental: una goma elástica. Al estirarla longitudinalmente, **se
+> adelgaza**. Una plastilina: al aplastarla por arriba, **se ensancha** por los
+> lados.
+
+Se cuantifica con el **coeficiente de Poisson** $\nu$ (la `nu` del código,
+$\nu=0.30$ para acero):
+
+$$\nu = -\frac{\text{deformación transversal}}{\text{deformación axial}}
+     = -\frac{\varepsilon_{\text{transv}}}{\varepsilon_{\text{axial}}}$$
+
+El signo menos hace que $\nu$ sea positivo: estirar ($\varepsilon_{axial}>0$)
+produce contracción lateral ($\varepsilon_{transv}<0$). Valores típicos: acero
+$0.30$, aluminio $0.33$, caucho $\approx0.5$ (casi incompresible), corcho
+$\approx0$ (no se ensancha, por eso entra bien en la botella).
+
+**Por qué esto acopla las ecuaciones:** mira la ley de Hooke del proyecto:
+
+$$\sigma_{xx} = (\lambda+2\mu)\,\varepsilon_{xx} + \lambda\,\varepsilon_{yy}$$
+
+La tensión horizontal $\sigma_{xx}$ **no depende solo** de la deformación
+horizontal $\varepsilon_{xx}=\partial u/\partial x$, sino **también** de la
+vertical $\varepsilon_{yy}=\partial v/\partial y$, vía $\lambda$ (que contiene
+$\nu$). Es decir, lo que pasa con $v$ influye en la ecuación de $u$ y viceversa:
+**están acopladas**. El término $\lambda$ es, físicamente, el mensajero del
+efecto Poisson dentro de las ecuaciones. Si $\nu=0$ (sin efecto Poisson),
+$\lambda$ no se anula del todo pero el acoplamiento se reduce drásticamente.
+
+---
+
+## 3. La teoría clásica de vigas (Euler-Bernoulli)
+
+Es el modelo **simplificado** de vigas que se enseña en resistencia de materiales,
+anterior al enfoque 2D/3D del continuo. En lugar de tratar la viga como una
+lámina con campo $(u,v)$ en cada punto, la reduce a **una línea** (el eje de la
+viga) y describe su flexión con **una sola función**: la flecha $w(x)$ —cuánto
+baja el eje en cada posición $x$.
+
+Su ecuación de gobierno es una **ODE** (una variable independiente, $x$):
+
+$$EI\,\frac{d^4 w}{dx^4} = q(x)$$
+
+donde $E$ es el módulo de Young, $I$ el momento de inercia de la sección y $q$ la
+carga distribuida. Es **mucho más barata** de resolver que el sistema 2D.
+
+**Por qué "solo aproxima":** Euler-Bernoulli asume hipótesis fuertes:
+
+- Las **secciones planas permanecen planas y perpendiculares** al eje tras
+  deformarse → **desprecia la deformación por cortante** ($\tau_{xy}$). Buena
+  para vigas **esbeltas** (largas y finas), mala para vigas **cortas y altas**,
+  donde el cortante importa.
+- No captura cómo se **distribuyen las tensiones a través del peralto** con
+  detalle (las da por una fórmula lineal supuesta, no resuelta).
+
+El modelo 2D de este TFM **no hace esas suposiciones**: resuelve las ecuaciones
+del continuo completas (Navier-Cauchy), así que captura el cortante, las
+concentraciones de tensión en el empotramiento, etc. Por eso decimos que
+Euler-Bernoulli "solo aproxima" lo que aquí se resuelve de forma más fiel.
+(Existe un modelo intermedio, **Timoshenko**, que sí incluye cortante pero sigue
+siendo 1D.)
+
+---
+
+## 4. Elastodinámica lineal y por qué tensión plana
+
+Desglosemos el nombre completo del problema, término a término:
+
+**"Elasto-"** → **elasticidad**: el material se deforma bajo carga pero
+**recupera** su forma original al retirarla (como un muelle), sin daño
+permanente. Lo opuesto sería plasticidad (deformación permanente).
+
+**"-dinámica"** → **depende del tiempo** e incluye la **inercia**
+($\rho\,\partial^2 u/\partial t^2$, masa × aceleración). Hay ondas y vibraciones.
+Lo opuesto sería **estática** (equilibrio, sin tiempo). Como el problema modela un
+**impacto** y la **oscilación** posterior, es dinámica.
+
+**"lineal"** → hay **proporcionalidad** en dos sentidos:
+1. Tensión ∝ deformación (ley de Hooke, material lineal).
+2. Deformación ∝ derivadas del desplazamiento (tensor de deformación *lineal*,
+   válido por pequeñas deformaciones — ver pregunta 5).
+
+Consecuencia: las ecuaciones son lineales en la incógnita, lo que las hace
+**tratables** y garantiza buenas propiedades (superposición, unicidad). Lo
+opuesto sería no-lineal (grandes deformaciones, material que plastifica…).
+
+**Por qué "tensión plana" (plane stress):**
+Una viga real es 3D, pero la modelamos en el plano $x\text{–}y$. Para reducir 3D→2D
+hay que suponer algo sobre el espesor (dirección $z$). Hay dos hipótesis clásicas:
+
+- **Tensión plana** ← la de este TFM. Para cuerpos **delgados** en $z$ (una placa
+  o viga de poco espesor) con las caras $z$ libres: no hay nada que las empuje, así
+  que las tensiones fuera del plano son nulas: $\sigma_{zz}=\sigma_{xz}=\sigma_{yz}=0$.
+  El material **sí puede contraerse libremente** en $z$ (Poisson). De aquí sale
+  $\lambda = E\nu/(1-\nu^2)$, exactamente la fórmula del
+  [código](../config.py#L79-L80).
+- **Deformación plana** (plane strain): para cuerpos **muy largos** en $z$ (una
+  presa, un túnel, una tubería larga), donde el material **no puede** moverse en
+  $z$: $\varepsilon_{zz}=0$. Daría una $\lambda$ distinta.
+
+Se elige **tensión plana** porque una viga es un elemento **delgado** comparado
+con su longitud y canto; sus caras laterales están libres. Justificar esto
+("viga delgada de caras libres ⇒ tensión plana") es un punto fino de tribunal.
+
+---
+
+## 5. La deformación angular $\varepsilon_{xy}$, el cortante y por qué linealizar
+
+### 5.1 Qué significa $\varepsilon_{xy}=\tfrac12(\partial u/\partial y+\partial v/\partial x)$
+
+Las deformaciones $\varepsilon_{xx}$ y $\varepsilon_{yy}$ miden **cambios de
+longitud** (estirar/encoger). Pero un material puede deformarse **sin cambiar
+ninguna longitud**: solo **torciendo los ángulos**. Eso es la deformación
+angular (o de cizalla) $\varepsilon_{xy}$.
+
+Imagina un **cuadradito** dibujado en el material, con sus lados paralelos a los
+ejes y sus esquinas a 90°:
+
+```
+   antes (reposo)          después (cizalla pura)
+   ┌─────────┐                 ╱─────────╱
+   │         │                ╱         ╱
+   │         │               ╱         ╱
+   └─────────┘              ╱─────────╱
+   ángulos = 90°          ángulos ≠ 90°  (se ha "inclinado")
+```
+
+El cuadrado se convierte en un **romboide**: sus lados ya no forman 90°.
+$\varepsilon_{xy}$ mide **cuánto se ha cerrado/abierto ese ángulo recto**. Los dos
+términos explican por qué:
+
+- $\partial u/\partial y$: cuánto cambia el desplazamiento **horizontal** $u$ a
+  medida que subes en **vertical** $y$ → inclina los lados verticales.
+- $\partial v/\partial x$: cuánto cambia el desplazamiento **vertical** $v$ al
+  avanzar en **horizontal** $x$ → inclina los lados horizontales.
+
+La suma de ambas inclinaciones = distorsión total del ángulo. El $\tfrac12$ es una
+convención para que el tensor sea simétrico y consistente.
+
+### 5.2 Qué es el cortante y por qué $\varepsilon_{xy}$ es responsable de él
+
+**Cortante** (o cizalla, *shear*) es el tipo de esfuerzo que **desliza unas capas
+del material sobre las otras**, en paralelo (tangencial), en lugar de
+estirarlas/comprimirlas (perpendicular). Piensa en:
+
+- Una **baraja de cartas**: si empujas la carta de arriba hacia un lado, las
+  cartas **deslizan** unas sobre otras → eso es cizalla.
+- Unas **tijeras** (de hecho "cortante" viene de cortar): las dos hojas aplican
+  fuerzas paralelas pero en sentidos opuestos y desfasadas → el papel se cizalla
+  y se separa.
+
+La conexión con $\varepsilon_{xy}$ es directa vía la ley de Hooke del proyecto:
+
+$$\tau_{xy} = 2\mu\,\varepsilon_{xy} = \mu\Big(\frac{\partial u}{\partial y}+\frac{\partial v}{\partial x}\Big)$$
+
+La **tensión cortante** $\tau_{xy}$ (fuerza tangencial por área) es directamente
+proporcional a la **deformación angular** $\varepsilon_{xy}$ (la distorsión del
+ángulo). Por eso decimos que $\varepsilon_{xy}$ "es la deformación responsable del
+cortante": si no hay distorsión angular, no hay tensión cortante. El factor de
+proporción es $\mu$ (el módulo de cortante $G$).
+
+### 5.3 Por qué la hipótesis de pequeñas deformaciones / problema lineal
+
+El tensor de deformación **exacto** (válido para grandes deformaciones) tiene
+términos **cuadráticos**, p. ej.:
+
+$$\varepsilon_{xx}^{\text{exacto}} = \frac{\partial u}{\partial x}
+   + \tfrac12\Big[\big(\tfrac{\partial u}{\partial x}\big)^2
+                 +\big(\tfrac{\partial v}{\partial x}\big)^2\Big]$$
+
+Cuando los desplazamientos y sus gradientes son **diminutos** (aquí, micras: los
+gradientes son $\sim10^{-5}$), esos términos cuadráticos son **despreciables**
+($(10^{-5})^2 = 10^{-10}$, irrelevante frente a $10^{-5}$). Así nos quedamos con
+la **versión lineal**: $\varepsilon_{xx}\approx\partial u/\partial x$. Esto es la
+**hipótesis de pequeñas deformaciones**.
+
+**Por qué nos interesa que el problema sea lineal:**
+
+1. **Validez física:** los desplazamientos reales de la viga *son* minúsculos,
+   así que la linealización no introduce error apreciable; sería absurdo cargar
+   con la complejidad no-lineal sin ganancia.
+2. **Tratabilidad matemática:** las ecuaciones lineales tienen **solución única**,
+   permiten **superposición** (sumar soluciones) y están bien condicionadas.
+3. **Entrenamiento de la PINN:** un problema lineal da un **paisaje de pérdida**
+   más benigno y derivadas más estables, lo que ayuda a que la red **converja**.
+   Términos cuadráticos meterían no-linealidades fuertes que complicarían la
+   optimización.
+
+En resumen: pequeño desplazamiento → tensor lineal → problema lineal → físicamente
+fiel **y** numéricamente manejable. Ganamos en los dos frentes.
+
+---
+
+## 6. Interpretación física de cada tensión (la pregunta clave)
+
+Aquí está la confusión más importante de resolver, así que vamos despacio y con
+imágenes. La clave que desbloquea todo: **en una viga en flexión, la tensión
+$\sigma_{xx}$ NO es uniforme — cambia de signo a lo largo del peralto.**
+
+### 6.1 $\sigma_{xx}$: por qué la flexión es tracción Y compresión a la vez
+
+Tu intuición es correcta y a la vez incompleta. Tienes razón en que:
+- **Traccionar** de los dos extremos (tirar) → alargamiento axial uniforme.
+- **Comprimir** de los dos extremos (empujar) → acortamiento (y posible pandeo).
+
+Eso es **carga axial pura**, y ahí $\sigma_{xx}$ es **igual en todo el peralto**.
+Pero la **flexión es otra cosa**. Cuando la viga se **dobla** (como en este TFM,
+por una carga transversal en la punta), pasa lo siguiente:
+
+```
+        viga doblada hacia abajo (la punta baja)
+   ───────────────────────────────────  ← fibra SUPERIOR: se ESTIRA  → tracción (σ_xx > 0)
+   ─────────────────────────────────    ← fibra NEUTRA:   ni estira ni encoge (σ_xx = 0)
+   ───────────────────────────────      ← fibra INFERIOR: se COMPRIME → compresión (σ_xx < 0)
+```
+
+Cuando doblas la viga hacia abajo, las fibras de **arriba** tienen que recorrer un
+arco más largo → **se estiran** (tracción), y las de **abajo** un arco más corto →
+**se comprimen**. Entre ambas hay una capa, la **fibra neutra**, que no cambia de
+longitud. Por eso:
+
+$$\sigma_{xx}(y) \;\text{varía linealmente con } y:\quad
+  \text{tracción arriba},\;\; 0 \text{ en el centro},\;\; \text{compresión abajo}.$$
+
+**Así que la flexión genera $\sigma_{xx}$ sin necesidad de empujar/tirar
+axialmente:** la causa es el **doblado**, no una fuerza en $x$. La misma viga
+tiene, en una sección, tracción y compresión simultáneas en distintas alturas. Por
+eso $\sigma_{xx}$ se llama "tensión de flexión" y es la que produce el momento
+flector $M=\int \sigma_{xx}\,y\,dA$ (pregunta de doc 01 §2.4).
+
+### 6.2 $\sigma_{yy}$: apretar/separar en vertical
+
+$\sigma_{yy}$ es la tensión normal en dirección **vertical** ($y$): mide si el
+material está siendo **apretado o estirado de arriba abajo**, perpendicular al eje
+de la viga.
+
+```
+   fuerza ↓
+   ▼▼▼▼▼▼
+   ┌──────┐
+   │      │   ← el material se "aplasta" verticalmente: σ_yy de compresión
+   └──────┘
+   ▲▲▲▲▲▲
+   fuerza ↑
+```
+
+Surge, por ejemplo, justo **debajo de donde se aplica una carga** que empuje
+contra una cara. En una viga esbelta en flexión suele ser **pequeña** comparada
+con $\sigma_{xx}$ (por eso doc 01 dice "suele ser pequeña"), pero no es cero cerca
+de los puntos de aplicación de carga y apoyos.
+
+### 6.3 $\tau_{xy}$: el deslizamiento de capas (cizalla) y "cizallar una sección"
+
+$\tau_{xy}$ es la **tensión cortante**: la fuerza **tangencial** (paralela a la
+sección) que tiende a hacer **deslizar una capa de material sobre la contigua**.
+Retoma la imagen de la **baraja de cartas** (pregunta 5.2):
+
+```
+   imagina la viga como un montón de láminas horizontales apiladas:
+
+   ════════════  →  fuerza tirando hacia la derecha arriba
+   ════════════
+   ════════════  ←  fuerza hacia la izquierda abajo
+   las láminas tienden a DESLIZAR unas sobre otras → eso resiste τ_xy
+```
+
+"**Cizallar una sección**" significa aplicar fuerzas que tiendan a **cortar
+transversalmente** la viga, como unas tijeras: empujar el material de un lado de
+un plano hacia arriba mientras el otro lado va hacia abajo. La sección sufre un
+esfuerzo que la tiende a **rebanar**.
+
+¿Cómo aparece físicamente aquí? Es justo la **carga de impacto** del TFM: se
+aplica una **tracción cortante** $\tau_{app}$ en el extremo libre (un tirón
+**transversal** en la punta). Esa fuerza tangencial se transmite por la viga como
+tensión cortante $\tau_{xy}$, que es **máxima en la fibra neutra** (el centro,
+$y=0$) y **nula en las superficies libres** ($y=\pm c$) — justo el perfil
+parabólico $(1-\eta^2)$ que impone el código en
+[`applied_traction`](../physics/pde_loss.py#L154-L162). Físicamente: en las caras
+libres no hay nada que empuje tangencialmente, así que ahí el cortante debe
+anularse; en el centro es donde más "deslizan" las capas.
+
+### 6.4 Tabla resumen de las tres tensiones
+
+| Tensión | Dirección | Imagen mental | Cómo se genera aquí |
+|---|---|---|---|
+| $\sigma_{xx}$ | normal, axial ($x$) | fibras que se estiran/comprimen al **doblar** | flexión por la carga en la punta; máx. en el empotramiento |
+| $\sigma_{yy}$ | normal, transversal ($y$) | material **aplastado/estirado** vertical | local, bajo cargas/apoyos; suele ser pequeña |
+| $\tau_{xy}$ | tangencial (cizalla) | **baraja de cartas** deslizando | la tracción cortante de impacto; máx. en el centro |
+
+---
+
+## 7. Tensión de Von Mises: ¿qué valores predicen qué fallo?
+
+La tensión de Von Mises $\sigma_{VM}$ es un **escalar equivalente** que resume
+todo el estado tensional en un punto en un único número, comparable directamente
+con una propiedad del material medida en un ensayo de tracción simple. Su utilidad
+es predecir cuándo un **material dúctil** (acero, aluminio) empieza a fallar.
+
+El umbral de referencia es el **límite elástico** (o de fluencia) del material,
+$\sigma_y$ (*yield strength*) — una constante tabulada por material. El criterio
+de Von Mises dice:
+
+| Condición | Qué le pasa al material |
+|---|---|
+| $\sigma_{VM} < \sigma_y$ | **Régimen elástico**: deformación reversible. Al quitar la carga, **recupera** su forma. Diseño seguro. |
+| $\sigma_{VM} = \sigma_y$ | **Inicio de plastificación**: el material empieza a fluir (fallo según el criterio). |
+| $\sigma_{VM} > \sigma_y$ | **Régimen plástico**: deformación **permanente** (no recupera la forma); con más carga, estricción y **rotura**. |
+
+Valores orientativos de $\sigma_y$ (varían mucho con la aleación/tratamiento):
+
+- **Acero** estructural: $\sigma_y \approx 250\text{–}350\ \text{MPa}$ (aceros de
+  alta resistencia llegan a $>1000$ MPa).
+- **Aluminio**: $\sigma_y \approx 100\text{–}300\ \text{MPa}$ según aleación.
+
+En ingeniería **no** se diseña al límite: se aplica un **coeficiente de seguridad**
+$n$ (típico $1.5\text{–}3$), exigiendo $\sigma_{VM} \le \sigma_y/n$. Así se deja
+margen frente a incertidumbres (cargas reales, defectos, fatiga).
+
+**Conexión con el proyecto:** el dashboard colorea la malla por $\sigma_{VM}$
+([inference.py](../utils/inference.py#L122)) precisamente para localizar de un
+vistazo **dónde** el material está más cerca de su límite — típicamente el
+**empotramiento**, donde el momento flector y por tanto $\sigma_{xx}$ son máximos.
+Una extensión natural del TFM sería comparar el $\sigma_{VM}$ máximo simulado
+contra $\sigma_y$ del material para emitir un veredicto automático de
+"seguro / plastifica".
+
+> ⚠️ Matiz honesto para defensa: Von Mises es un criterio para materiales
+> **dúctiles**. Para **frágiles** (fundición, cerámica, hormigón) se usan otros
+> (tensión normal máxima, Mohr-Coulomb), porque esos fallan por tracción, no por
+> cortante.
+
+---
+
+### ✅ Resumen de las 7 dudas
+1. Campo = función que da $(u,v)$ en **cada** punto e instante; "componente" $u$ vs "campo" completo.
+2. Poisson = contracción lateral al estirar; entra en las ecuaciones vía $\lambda$ y las acopla.
+3. Euler-Bernoulli = modelo 1D (ODE) que desprecia el cortante; el 2D lo resuelve fielmente.
+4. Elastodinámica lineal = elástico + con inercia/tiempo + proporcional; tensión plana por viga delgada de caras libres.
+5. $\varepsilon_{xy}$ = distorsión del ángulo recto → genera $\tau_{xy}$; linealizar por desplazamientos diminutos (fiel + manejable + convergencia).
+6. $\sigma_{xx}$ = flexión (tracción arriba/compresión abajo, no carga axial); $\sigma_{yy}$ = aplastamiento vertical; $\tau_{xy}$ = capas deslizando (baraja).
+7. $\sigma_{VM} < \sigma_y$ elástico (reversible); $\ge \sigma_y$ plástico (permanente)→rotura; diseñar con coef. de seguridad.
+
+
+DUDAS: averiguar qué es u_xx, u_yy, etc, acaso son derivadas segundas de u respecto a x^2 e y^2? Averiguar el sentido físico de estás derivadas y de las de u_xy y u_tt.
