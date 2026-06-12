@@ -1,0 +1,12 @@
+# Núcleo numérico / aprendizaje profundo
+torch>=2.1
+numpy>=1.24
+scipy>=1.10
+
+# Visualización (app Dash)
+dash>=2.16
+plotly>=5.18
+
+# Registro del modelo (opcional, almacenamiento gratuito)
+wandb>=0.16
+python-dotenv>=1.0
