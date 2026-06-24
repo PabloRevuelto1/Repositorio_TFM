@@ -1,0 +1,46 @@
+# Imagen de ENTRENAMIENTO para un Pod GPU de RunPod.
+# Lanza el entrenamiento, sube el modelo a W&B y termina (el Pod puede apagarse).
+#
+# Build & push:
+#   docker build -f Dockerfile.train -t <usuario>/viga2d-train:latest .
+#   docker push <usuario>/viga2d-train:latest
+#
+# En RunPod: crear un Pod GPU de alto rendimiento (H100 / A100 / L40S, techo
+# 2.5 $/h, ver runpod_launch.py) con esta imagen y la variable WANDB_API_KEY
+# (y opcionalmente ADAM/LBFGS/CHUNK).
+FROM pytorch/pytorch:2.2.0-cuda12.1-cudnn8-runtime
+
+WORKDIR /app
+# Salida sin buffer: los logs de entrenamiento aparecen en tiempo real en RunPod.
+ENV PYTHONUNBUFFERED=1
+RUN pip install --no-cache-dir scipy wandb python-dotenv runpod
+
+# Código del proyecto
+COPY config.py ./
+COPY models ./models
+COPY physics ./physics
+COPY utils ./utils
+COPY train.py ./
+COPY runpod_selfterminate.py ./
+
+# Hiperparámetros por defecto. OJO: `runpod_launch.py` los SOBREESCRIBE pasándolos por
+# variable de entorno (fuente única de verdad), así que estos valores sólo se usan si
+# ejecutas la imagen SIN el lanzador (p. ej. `docker run`). Para cambiar épocas con el
+# lanzador NO hace falta reconstruir la imagen: usa `.env` o `ADAM=... uv run runpod_launch.py`.
+# En GPU potente (H100/A100) un entreno completo cabe holgadamente en el tiempo.
+# Capturar el TRANSITORIO DINÁMICO (oscilación de la viga) exige bastantes más
+# iteraciones que la flexión cuasi-estática: el régimen de flexión es suave pero la
+# oscilación es contenido temporal que el optimizador tarda en ajustar (sesgo espectral).
+# 2000 Adam se quedaban en la solución cuasi-estática (sin rebote). Ver docs/05 §4-quater.
+ENV ADAM=2500
+ENV LBFGS=100
+ENV CHUNK=1024
+# Presupuesto de tiempo: al superarlo, guarda y sube el mejor modelo (0 = sin límite).
+# Debe ser MENOR que el POLL_TIMEOUT del launcher para subir antes de que corte el Pod.
+ENV MAX_MINUTES=70
+
+# Entrena en GPU, sube el checkpoint a W&B y, PASE LO QUE PASE (éxito, límite de
+# tiempo o error), APAGA EL POD desde dentro. El ';' garantiza que el apagado se
+# ejecuta aunque train.py falle → nunca se reinicia el entrenamiento en bucle ni
+# se siguen gastando créditos. Requiere RUNPOD_API_KEY en el entorno del Pod.
+CMD ["sh", "-c", "python train.py --adam ${ADAM} --lbfgs ${LBFGS} --chunk ${CHUNK} --max-minutes ${MAX_MINUTES} --device cuda ; python runpod_selfterminate.py"]
